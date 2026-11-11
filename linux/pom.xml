@@ -29,7 +29,7 @@
         <!-- java-gi (GTK4/libadwaita bindings) requires a newer language level than the rest of the reactor -->
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
-        <javagi-version>0.12.0</javagi-version>
+        <javagi-version>0.12.2</javagi-version>
     </properties>
 
     <profiles>
