@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#
+# Launch Cyberduck with Windows-exact UI (Python/Qt) backed by Cyberduck Core
+#
+set -e
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="$DIR/python:$PYTHONPATH"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+
+exec python3 -m cyberduck.main "$@"

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2002-2016 iterate GmbH. All rights reserved.
+  ~ https://cyberduck.io/
+  ~
+  ~ This program is free software; you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation; either version 2 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>ch.cyberduck</groupId>
+        <artifactId>parent</artifactId>
+        <version>9.6.1-SNAPSHOT</version>
+    </parent>
+    <artifactId>linux</artifactId>
+    <description>Cyberduck Linux</description>
+    <packaging>jar</packaging>
+
+    <properties>
+        <!-- java-gi (GTK4/libadwaita bindings) requires a newer language level than the rest of the reactor -->
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <javagi-version>0.12.0</javagi-version>
+    </properties>
+
+    <profiles>
+        <profile>
+            <id>linux</id>
+            <activation>
+                <os>
+                    <family>Linux</family>
+                </os>
+            </activation>
+            <properties>
+                <maven.test.skip>false</maven.test.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>not-linux</id>
+            <activation>
+                <os>
+                    <family>!Linux</family>
+                </os>
+            </activation>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-bytecode-version</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <enforceBytecodeVersion>
+                                    <maxJdkVersion>25</maxJdkVersion>
+                                    <ignoredScopes>
+                                        <ignoreScope>test</ignoreScope>
+                                    </ignoredScopes>
+                                </enforceBytecodeVersion>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>ch.cyberduck</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.cyberduck</groupId>
+            <artifactId>protocols</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>ch.cyberduck</groupId>
+            <artifactId>profiles</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.jwharm.javagi</groupId>
+            <artifactId>gtk</artifactId>
+            <version>${javagi-version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.jwharm.javagi</groupId>
+            <artifactId>adw</artifactId>
+            <version>${javagi-version}</version>
+        </dependency>
+    </dependencies>
+</project>

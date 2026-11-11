@@ -77,7 +77,7 @@ public class STSAuthorizationService {
         this.service = AWSSecurityTokenServiceClientBuilder
                 .standard()
                 .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(bookmark.getProtocol().getSTSEndpoint(),
-                        S3Protocol.DEFAULT_STS_ENDPOINT.equals(bookmark.getProtocol().getSTSEndpoint()) ? null : bookmark.getRegion()))
+                        S3Protocol.DEFAULT_STS_ENDPOINT.equals(bookmark.getProtocol().getSTSEndpoint()) ? "us-east-1" : bookmark.getRegion()))
                 .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
                 .withClientConfiguration(new CustomClientConfiguration(bookmark,
                         new ThreadLocalHostnameDelegatingTrustManager(trust, bookmark.getProtocol().getSTSEndpoint()), key))
