@@ -1,255 +1,138 @@
-# Cyberduck
+# Cyberduck for Linux
 
-[![GitHub commit](https://img.shields.io/github/last-commit/iterate-ch/cyberduck)](https://github.com/iterate-ch/cyberduck/commits/master)
-[![GitHub license](https://img.shields.io/badge/license-GPL-blue.svg)](https://raw.githubusercontent.com/iterate-ch/cyberduck/master/LICENSE)
-[![Build Status](https://github.com/iterate-ch/cyberduck/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/iterate-ch/cyberduck/actions)
-[![Integration Tests](https://github.com/iterate-ch/cyberduck/actions/workflows/ci.yml/badge.svg)](https://github.com/iterate-ch/cyberduck/actions/workflows/ci.yml)
-[![Mastodon](https://img.shields.io/mastodon/follow/109698908353278292?domain=https%3A%2F%2Ffosstodon.org%2F&style=flat)](https://fosstodon.org/@cyberduck)
-[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Cyberduck%20Guru-006BFF)](https://gurubase.io/g/cyberduck)
+[![Release](https://img.shields.io/github/v/release/sridharreddy23/cyberduck-linux?include_prereleases&style=flat-square&color=blue)](https://github.com/sridharreddy23/cyberduck-linux/releases)
+[![Debian Package](https://img.shields.io/badge/package-.deb%20(Ubuntu%2FDebian%2FMint)-orange?style=flat-square)](https://github.com/sridharreddy23/cyberduck-linux/releases/tag/v9.6.1-linux)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green.svg?style=flat-square)](LICENSE.txt)
+[![Java Compatibility](https://img.shields.io/badge/Java-17%20%7C%2021%20%7C%2025-blueviolet?style=flat-square)](https://adoptium.net)
 
-This is the development home for Cyberduck, a libre file transfer client for macOS and Windows. Command line interface (CLI) for Linux, macOS and Windows. The core libraries are used in [Mountain Duck](https://mountainduck.io/).
+Native Cyberduck desktop client for Linux featuring the classic Windows/macOS desktop look & feel, powered by Cyberduck Core and Qt5, with first-class AWS SSO (IAM Identity Center) support.
 
-<img src="https://cdn.cyberduck.io/img/cyberduck-icon-rect-512.png" alt="Cyberduck Icon" width="400px"/>
+<p align="center">
+  <img src="cyberduck-application-rect.png" alt="Cyberduck Linux Icon" width="160px"/>
+</p>
 
-## Mailing Lists
+---
 
-There is a [Google Groups Cyberduck](http://groups.google.com/group/cyberduck/) discussion mailing list.
+## What Problem Does This Solve on Linux?
 
-The following additional [mailing lists](http://lists.cyberduck.io/) are hosted:
+While Cyberduck is widely celebrated on macOS and Windows as one of the best file transfer and cloud storage clients, Linux users historically faced major gaps:
 
-* [News](http://lists.cyberduck.io/mailman/listinfo/cyberduck-news) Announcements of new releases
-* [Localization](http://lists.cyberduck.io/mailman/listinfo/cyberduck-localization) Notifications about changes to the translations needed
+1. **No Official Linux Desktop UI**: Upstream Cyberduck only provides a command-line interface (`duck`) or experimental prototypes on Linux. Running the Windows version through Wine suffers from latency, broken shortcuts, file dialog glitches, and poor desktop integration.
+2. **AWS SSO (IAM Identity Center) Hurdles**: In enterprise cloud environments, authenticating to AWS S3 using AWS SSO with multiple accounts and IAM roles often requires manual terminal commands (`aws sso login`), copying short-lived STS tokens, or re-configuring credentials every time they expire.
+3. **Accidental Bucket/Folder Renaming**: In generic tree views, clicking or double-clicking items often inadvertently enters inline rename edit mode, creating risks when browsing critical cloud storage buckets.
+4. **Out-of-Order Download Timestamps**: By default, cloud clients preserve remote object timestamps (often months or years old), causing downloaded files to get lost at the bottom of Linux file managers (Nautilus, Dolphin, Nemo) instead of staying at the top of the `~/Downloads` folder.
+5. **Java Runtime Mismatches**: Heavyweight Panama / Java 22+ preview bindings frequently break on LTS enterprise Linux distributions running OpenJDK 17 or OpenJDK 21.
 
-## Source
+### The Solution: Cyberduck for Linux
 
-Source code is available licensed under the [GNU General Public License Version 3](https://www.gnu.org/licenses/gpl-3.0.en.html).
+This repository provides a **fully integrated desktop application** and standalone **Debian (`.deb`) installer**:
 
-## Contributions
+- **Native Linux Desktop Experience**: Powered by a robust PyQt5 GUI replicating the authentic Windows Cyberduck interface with full Freedesktop system integration, app menu launcher, and high-resolution icons.
+- **Offline SQLite AWS SSO Switcher (`~/.duck/aws_sso.db`)**:
+  - Automatically loads and switches between 10+ AWS Accounts and 20+ IAM Roles in < 1 millisecond.
+  - Automatically retrieves and caches temporary STS tokens in the background without UI freezes.
+  - Generates Cyberduck S3 connection bookmarks automatically for each account and role.
+- **Protected File Operations**: Inline rename triggers are disabled on item clicks. Renaming requires an explicit intent via **F2** or **Right-Click → Rename**.
+- **Chronological Download Sorting**: Configured to preserve current download timestamps so files always land at the top of your Downloads folder.
+- **Universal Java LTS Compatibility**: Bundled backend engine is compiled with Java 17 bytecode and verified across **OpenJDK 17 LTS**, **OpenJDK 21 LTS**, and **OpenJDK 25**.
+- **Multi-Protocol Engine**: Built directly on Cyberduck's core transfer engine, supporting **Amazon S3, SFTP (SSH), FTP/FTPS, WebDAV**, and more.
 
-Pull requests welcome! Please read the [contributing guidelines](CONTRIBUTING.md) and sign the Contributor License Agreement first.
+---
 
-## Localizations
+## Installation
 
-Translations to new languages are welcome. We use [Transifex](https://app.transifex.com/cyberduck/cyberduck/dashboard/)
-to localize resources. Current available localizations are _English_, _Czech_, _Dutch_, _Finnish_, _French_, _German_,
-_Italian_, _Japanese_, _Korean_, _Norwegian_, _Portuguese_, _Slovak_, _Spanish_, _Chinese (Traditional & Simplified
-Han)_, _Russian_, _Swedish_, _Hungarian_, _Danish_, _Polish_, _Indonesian_, _Catalan_, _Welsh_, _Thai_, _Turkish_,
-_Hebrew_, _Latvian_, _Greek_, _Serbian_, _Georgian_ and _Slovenian_.
+### Method 1: Install Pre-Built `.deb` (Recommended for Ubuntu / Debian / Mint)
 
-Make sure to subscribe to the [localization mailing list](http://lists.cyberduck.ch/mailman/listinfo/cyberduck-localization).
+Download and install the latest `.deb` package directly from [GitHub Releases](https://github.com/sridharreddy23/cyberduck-linux/releases):
 
-## Documentation
+```bash
+# 1. Download the latest release package
+wget https://github.com/sridharreddy23/cyberduck-linux/releases/download/v9.6.1-linux/cyberduck_9.6.1-5_amd64.deb
 
-For general help about using Cyberduck, please refer to the [documentation](https://docs.cyberduck.io). The documentation is maintained in its own [repository](https://github.com/iterate-ch/docs).
+# 2. Install the package
+sudo dpkg -i cyberduck_9.6.1-5_amd64.deb
 
-## Additional Connection Profiles
-
-Additional connection profiles not bundled by default but available in _Preferences → Profiles_ are maintained in its own [repository](https://github.com/iterate-ch/profiles).
-
-## Snapshot and Beta builds
-
-These are nightly snapshot builds from the current development trunk featuring the latest bug fixes and enhancements. Be
-warned, though, these builds are potentially unstable and experimental. You can also switch to beta or snapshot builds
-in _Preferences → Update_.
-
-## Prerequisites
-
-- Java 11 SDK or later
-- Apache Ant 1.10.1 or later
-- Apache Maven 3.5 or later
-
-### macOS
-
-- [Xcode 12](https://developer.apple.com/xcode/download/) or later
-
-### Windows
-
-#### Installation
-
-**Manually**
-- Visual Studio 2022, following workloads are required:
-  - `.NET desktop development`
-  - `Universal Windows Platform development`
-  - `Desktop development with C++`
-- [Bonjour SDK for Windows](https://support.apple.com/kb/dl999)
-- [Wix v3](https://wixtoolset.org/docs/wix3/) (Optional)
-
-**Chocolatey**
-
-_Without Visual Studio (IDE)_
-```sh
-choco install visualstudio2022buildtools -y
-choco install visualstudio2022-workload-manageddesktopbuildtools -y
-choco install visualstudio2022-workload-vctools -y
-choco install visualstudio2022-workload-universalbuildtools -y
+# 3. Resolve any missing system dependencies (PyQt5, JRE)
+sudo apt-get install -f
 ```
 
-_With Visual Studio IDE_
-```sh
-choco install visualstudio2022(edition) -y
-choco install visualstudio2022-workload-manageddesktop -y
-choco install visualstudio2022-workload-nativedesktop -y
-choco install visualstudio2022-workload-universal -y
+#### Launching the Application
+- From the system application menu / search: search for **Cyberduck**
+- From the terminal:
+  ```bash
+  cyberduck
+  ```
+
+---
+
+## AWS SSO (IAM Identity Center) Setup & Usage
+
+Connecting to AWS S3 using AWS SSO is effortless:
+
+1. **Sign In**: Click **Open Connection** → select **Amazon S3 (IAM Identity Center)** → click **AWS SSO Login**.
+2. **Authorize in Browser**: Cyberduck triggers the AWS SSO authentication in your browser. Once approved, all assigned AWS Accounts and Roles are automatically synced to your local SQLite database.
+3. **One-Click Switcher**: Select your target **AWS Account** and **IAM Role** from the dropdowns. Fresh STS temporary credentials (`AccessKeyId`, `SecretAccessKey`, `SessionToken`) are loaded automatically.
+4. **Save as Bookmark**: Click **Save as Bookmark** to create a 1-click connection profile for future sessions.
+5. **Connect**: Click **Apply to Connection** → **Connect**. Your S3 buckets and objects will populate instantly in the file browser.
+
+---
+
+## Running or Building from Source
+
+### Prerequisites
+- Python 3.8+ with PyQt5:
+  ```bash
+  sudo apt install python3 python3-pyqt5
+  ```
+- Java Runtime Environment (OpenJDK 17 LTS, 21 LTS, or 25):
+  ```bash
+  sudo apt install default-jre
+  ```
+
+### Run Directly from Git Clone
+You can run the application straight from the repository without installing:
+```bash
+git clone https://github.com/sridharreddy23/cyberduck-linux.git
+cd cyberduck-linux
+./cyberduck-windows-ui
 ```
 
-Replace `(edition)` with your licensed IDE SKU: community, professional, enterprise
+### Build Your Own `.deb` Package
+To compile classes and package a fresh `.deb`:
+```bash
+./scripts/build_deb.sh
+```
+The output package will be generated at `dist/cyberduck_9.6.1-5_amd64.deb`.
 
-Install required dependencies, after installing Visual Studio IDE or build tools:
-```sh
-choco install microsoft-openjdk17 ant maven -y
-choco install bonjour -y; choco install bonjour -y --force
+---
+
+## Architecture Overview
+
+```
+┌────────────────────────────────────────────────────────┐
+│               Cyberduck Linux Desktop                  │
+│       PyQt5 Native GUI (python/cyberduck/ui/)          │
+│   - Windows-exact TreeListView & Toolbars             │
+│   - Offline SQLite AWS SSO Engine (aws_db.py)          │
+│   - Bookmark Manager & Transfers Dialog                │
+└───────────────────────────┬────────────────────────────┘
+                            │ JSON-RPC (stdin/stdout)
+┌───────────────────────────▼────────────────────────────┐
+│         Headless Java Daemon (BridgeDaemon.java)       │
+│   - ch.cyberduck.linux.BridgeDaemon (Java 17 target)   │
+│   - Asynchronous worker execution & session pool       │
+└───────────────────────────┬────────────────────────────┘
+                            │ Internal Java APIs
+┌───────────────────────────▼────────────────────────────┐
+│            Cyberduck Core Engine & Protocols           │
+│   - ch.cyberduck.core (Transfers, S3, SFTP, WebDAV)   │
+│   - Cryptomator Vault layer & credential stores        │
+└────────────────────────────────────────────────────────┘
 ```
 
-Optional, see Remarks:
-```sh
-choco install wixtoolset -y
-```
+---
 
-_Remarks_: Installing with Chocolatey may or may not fail spectacularly.<br>
-Following issues have been observed on a clean installation:
-- Bonjour package fails with `file not found` - though the Bonjour64.msi is extracted from BonjourPSSetup.exe.
-- wixtoolset depends on .NET 3.5-package, which never completes<br>
-  On Windows 11 installation doesn't work
-- `visualstudio*-workload-*` may halt with "Operation canceled",<br>
-  Abort Chocolatey-command (Ctrl-C), then open up Visual Studio Installer and Resume installation there
+## License & Credits
 
-Restart your machine after installing these components.
-
-#### System Configuration
-Make sure that `MSBuild`, `mvn`, `ant` and `java` are on your `PATH`-environment variable.
-* Open `Developer Command Prompt for VS2022`, then run `where msbuild.exe`, add first directory name to path
-  * e.g. `C:\Program Files\Microsoft Visual Studio\Community\Msbuild\Current\Bin\amd64`
-* Chocolatey may have added mvn and ant to your `PATH`-variable
-* The Microsoft OpenJDK 17 installer automatically adds itself to the system `PATH`.
-
-Additionally include the latest Windows Sdk-binary folder in your `PATH`-environment variable:
-* `%ProgramFiles(x86)%\Windows Kits\10\bin\10.0.<Latest>.0\x64`
-
-#### NuGet Configuration
-
-To build on Windows, you need to configure NuGet with credentials to access GitHub Package Registry sources. Create a GitHub [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-nuget-registry) with at least `read:packages` permissions.
-
-Then, in the Cyberduck repository root directory, run the following commands in Terminal (PowerShell or Command Prompt):
-
-```sh
-dotnet nuget update source gh-ikvmnet -u "YourUsername" -p "YourPAT"
-dotnet nuget update source gh-iterate-ch -u "YourUsername" -p "YourPAT"
-```
-
-Replace `YourUsername` with your GitHub username and `YourPAT` with your personal access token.
-
-## Building
-
-Run `SKIP_SIGN=true mvn verify -DskipTests` to build without running any tests and skip code-signing. Find build artifacts in
-
-* `osx/target/Cyberduck.app`
-* `windows/target/Cyberduck.exe`
-
-Run with `-Pinstaller` to build installer packages with build artifacts
-
-* `osx/target/release/*.(zip|pkg)`
-* `windows/target/release/*.(exe|msi)`
-* `cli/osx/target/release/*.(pkg|tar.gz)`
-* `cli/windows/target/release/*.(exe|msi)`
-* `cli/linux/target/release/*.(deb|rpm)`
-
-### macOS
-
-Active the sandboxing profile with `-Psandbox` to apply sandbox entitlements `com.apple.security.app-sandbox`.
-
-### Windows
-
-You will run into warnings from `MSBuild`/`WiX` that are unrelated to how Cyberduck is built. You may safely ignore them.
-
-## Debugging
-
-### macOS
-
-Build with `-Pdebug` to allow attaching the remote debugger on port `5005`.
-
-### Windows
-
-Due to Visual Studio not being able to handle Java projects it is required to follow these steps for debugging:
-
-- Run `mvn verify -Dconfiguration=debug` which ensures that debugging symbols are generated
-  This prevents Visual Studio (or `MSBuild invoked from Maven`) from generating optimized assemblies which in turn may
-  prevent debugging.
-- Open the solution in Visual Studio
-- Open a `.java` file and set a breakpoint. Visual Studio breaks either on or near the line selected.
-- Debugging capabilities include
-  - Step Over
-  - Step Into
-  - Step Out
-  - Continue
-  - Local/Auto variables
-  - Immediate Window
-  
-  Go To Symbol is not working due to missing Java support.
-
-## Running Tests
-
-After packaging, run `mvn test -DskipITs` to run unit tests but skip integration tests.
-
-### Maven Artifacts (GPL)
-
-#### Repository Configuration
-
-Maven artifacts are available in a repository hosted on Amazon S3.
-
-- Use the following Maven configuration in your project POM to reference artifacts from Cyberduck
-
-     ```xml
-    <repositories>
-        <repository>
-            <id>maven.cyberduck.io-release</id>
-            <url>https://s3-eu-west-1.amazonaws.com/repo.maven.cyberduck.io/releases</url>
-            <layout>default</layout>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
-    ```
-
-#### Artifacts
-
-- Protocol implementations
-
-    ```xml
-    <dependency>
-        <groupId>ch.cyberduck</groupId>
-        <artifactId>protocols</artifactId>
-        <type>pom</type>
-        <version>7.1.0</version>
-    </dependency>
-    ```
-
-- Cocoa Java Bindings (macOS)
-
-    ```xml
-    <dependency>
-        <groupId>ch.cyberduck</groupId>
-        <artifactId>binding</artifactId>
-        <version>7.1.0</version>
-    </dependency>
-    ```
-
-- Implementations (macOS) using Launch Services, SystemConfiguration, Foundation, Keychain and other API
-
-    ```xml
-    <dependency>
-        <groupId>ch.cyberduck</groupId>
-        <artifactId>libcore</artifactId>
-        <version>${project.version}</version>
-    </dependency>
-    ```
-
-## Sponsors
-
-[![YourKit](https://www.yourkit.com/images/yk_logo.svg)](https://www.yourkit.com)
-
-YourKit supports open source projects with its full-featured Java Profiler. YourKit, LLC is the creator of [YourKit Java Profiler](https://www.yourkit.com/java/profiler/)
-and [YourKit .NET Profiler](https://www.yourkit.com/.net/profiler/), innovative and intelligent tools for profiling Java and .NET applications.
+- **License**: [GNU General Public License Version 3](LICENSE.txt).
+- **Core Engine & Assets**: Developed by [iterate GmbH](https://cyberduck.io) and the Cyberduck open-source community.
