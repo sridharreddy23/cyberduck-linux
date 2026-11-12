@@ -235,8 +235,13 @@ public final class BridgeDaemon {
         try {
             protocols.register(new ch.cyberduck.core.sftp.SFTPProtocol());
             protocols.register(new ch.cyberduck.core.ftp.FTPProtocol());
+            protocols.register(new ch.cyberduck.core.ftp.FTPTLSProtocol());
             protocols.register(new ch.cyberduck.core.dav.DAVProtocol());
+            protocols.register(new ch.cyberduck.core.dav.DAVSSLProtocol());
             protocols.register(new ch.cyberduck.core.s3.S3Protocol());
+            protocols.register(new ch.cyberduck.core.googlestorage.GoogleStorageProtocol());
+            protocols.register(new ch.cyberduck.core.azure.AzureProtocol());
+            protocols.register(new ch.cyberduck.core.b2.B2Protocol());
         }
         catch(final Throwable t) {
             // ignore if not on classpath
@@ -440,12 +445,51 @@ public final class BridgeDaemon {
             final String token = req.has("token") && !req.get("token").isJsonNull() ? req.get("token").getAsString() : null;
             final String identity = req.has("identity") && !req.get("identity").isJsonNull() ? req.get("identity").getAsString() : null;
 
-            Protocol protocol = ProtocolFactory.get().forName(protocolId);
-            if(protocol == null) {
-                for(final Protocol p : ProtocolChoice.choices()) {
-                    if(protocolId.equalsIgnoreCase(p.getIdentifier()) || protocolId.equalsIgnoreCase(p.getPrefix()) || protocolId.equalsIgnoreCase(p.getScheme().name())) {
-                        protocol = p;
-                        break;
+            Protocol protocol = null;
+            if("s3-sso".equalsIgnoreCase(protocolId) || "s3-keys".equalsIgnoreCase(protocolId) || "s3".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("s3");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.s3.S3Protocol();
+                }
+            }
+            else if("gcs".equalsIgnoreCase(protocolId) || "googlestorage".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("googlestorage");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.googlestorage.GoogleStorageProtocol();
+                }
+            }
+            else if("azure".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("azure");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.azure.AzureProtocol();
+                }
+            }
+            else if("b2".equalsIgnoreCase(protocolId) || "backblaze".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("b2");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.b2.B2Protocol();
+                }
+            }
+            else if("ftps".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("ftps");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.ftp.FTPTLSProtocol();
+                }
+            }
+            else if("davs".equalsIgnoreCase(protocolId)) {
+                protocol = ProtocolFactory.get().forName("davs");
+                if(protocol == null) {
+                    protocol = new ch.cyberduck.core.dav.DAVSSLProtocol();
+                }
+            }
+            else {
+                protocol = ProtocolFactory.get().forName(protocolId);
+                if(protocol == null) {
+                    for(final Protocol p : ProtocolChoice.choices()) {
+                        if(protocolId.equalsIgnoreCase(p.getIdentifier()) || protocolId.equalsIgnoreCase(p.getPrefix()) || protocolId.equalsIgnoreCase(p.getScheme().name())) {
+                            protocol = p;
+                            break;
+                        }
                     }
                 }
             }

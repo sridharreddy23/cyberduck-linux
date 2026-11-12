@@ -35,8 +35,20 @@ This repository provides a **fully integrated desktop application** and standalo
 - **Protected File Operations**: Inline rename triggers are disabled on item clicks. Renaming requires an explicit intent via **F2** or **Right-Click → Rename**.
 - **Chronological Download Sorting**: Configured to preserve current download timestamps so files always land at the top of your Downloads folder.
 - **Universal Java LTS Compatibility**: Bundled backend engine is compiled with Java 17 bytecode and verified across **OpenJDK 17 LTS**, **OpenJDK 21 LTS**, and **OpenJDK 25**.
+- **First-Class Multi-Protocol Support**:
+  - **Amazon S3 (IAM Identity Center / SSO)**: Seamless browser-based AWS SSO authorization with offline SQLite credential caching.
+  - **Amazon S3 (Permanent Credentials)**: Dedicated protocol for standard IAM user `AKIA...` keys without temporary token clutter.
+  - **Google Cloud Storage (GCS)**: Direct storage bucket access with Google Cloud interoperability and service account keys.
+  - **Microsoft Azure Blob Storage**: Connects directly to Azure storage containers (`blob.core.windows.net`).
+  - **Backblaze B2 Cloud Storage**: Connects directly to B2 buckets with Key ID and Application Key.
+  - **SFTP (SSH), FTP, FTPS (Explicit TLS), and WebDAV (HTTP/HTTPS)**.
+- **Enhanced Bookmarks System**:
+  - **Instant Search / Filter**: Filter bookmarks in real time as you type.
+  - **Informative Two-Line Items**: Shows protocol badge, account nickname, host, username, and default path.
+  - **1-Click Bookmark Duplication**: Clone existing bookmarks to quickly configure new paths or credentials.
+  - **Save from Open Connection Dialog**: Directly save any connection profile as a bookmark before or during connection.
+  - **Bookmark Current Connection** (<kbd>Ctrl+Shift+B</kbd>): Save an active session's path and host with a single shortcut.
 - **S3 Presigned URL Generator**: Quickly generate secure, time-limited presigned URLs (15m, 1h, 6h, 12h, 24h, 3d, 7d) for any remote object with one-click copying and browser preview.
-- **Multi-Protocol Engine**: Built directly on Cyberduck's core transfer engine, supporting **Amazon S3, SFTP (SSH), FTP/FTPS, WebDAV**, and more.
 
 ---
 
@@ -48,10 +60,10 @@ Download and install the latest `.deb` package directly from [GitHub Releases](h
 
 ```bash
 # 1. Download the latest release package
-wget https://github.com/sridharreddy23/cyberduck-linux/releases/download/v9.6.1-linux/cyberduck_9.6.1-6_amd64.deb
+wget https://github.com/sridharreddy23/cyberduck-linux/releases/download/v9.6.1-linux/cyberduck_9.6.1-7_amd64.deb
 
 # 2. Install the package
-sudo dpkg -i cyberduck_9.6.1-6_amd64.deb
+sudo dpkg -i cyberduck_9.6.1-7_amd64.deb
 
 # 3. Resolve any missing system dependencies (PyQt5, JRE)
 sudo apt-get install -f
@@ -117,7 +129,7 @@ To compile classes and package a fresh `.deb`:
 ```bash
 ./scripts/build_deb.sh
 ```
-The output package will be generated at `dist/cyberduck_9.6.1-6_amd64.deb`.
+The output package will be generated at `dist/cyberduck_9.6.1-7_amd64.deb`.
 
 ---
 

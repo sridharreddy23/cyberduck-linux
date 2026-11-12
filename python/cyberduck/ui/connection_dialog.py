@@ -7,11 +7,11 @@ from pathlib import Path
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QSpinBox, QComboBox, QPushButton, QCheckBox,
-    QFileDialog, QGroupBox, QWidget, QApplication
+    QFileDialog, QGroupBox, QWidget, QApplication, QMessageBox
 )
 from PyQt5.QtCore import Qt
 from ..icons import get_icon, get_protocol_icon
-from ..bookmarks import load_bookmarks, Bookmark
+from ..bookmarks import load_bookmarks, Bookmark, SUPPORTED_PROTOCOLS
 
 
 class ConnectionDialog(QDialog):
@@ -20,7 +20,7 @@ class ConnectionDialog(QDialog):
         self.bridge = bridge
         self.setWindowTitle("Open Connection")
         self.setWindowIcon(get_icon("connect"))
-        self.resize(460, 360)
+        self.resize(490, 400)
         self.setModal(True)
 
         self._setup_ui()
@@ -92,7 +92,7 @@ class ConnectionDialog(QDialog):
         self.token_label = QLabel("Session Token:")
         grid.addWidget(self.token_label, 5, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.token_edit = QLineEdit()
-        self.token_edit.setPlaceholderText("Leave empty for permanent IAM keys (AKIA...). Required only for temporary STS keys (ASIA...)")
+        self.token_edit.setPlaceholderText("Temporary STS security token (ASIA...)")
         self.token_edit.setEchoMode(QLineEdit.Password)
         grid.addWidget(self.token_edit, 5, 1)
         self.token_label.setVisible(False)
@@ -114,8 +114,10 @@ class ConnectionDialog(QDialog):
         key_layout.addWidget(self.browse_key_btn)
         grid.addWidget(self.key_widget, 6, 1)
 
-        # 6. Checkboxes: Anonymous & Save Password & AWS Env button
+        # 6. Action Buttons for AWS credentials / Anonymous
         chk_layout = QHBoxLayout()
+        chk_layout.setSpacing(6)
+
         self.anon_chk = QCheckBox("Anonymous Login")
         self.anon_chk.toggled.connect(self._on_anon_toggled)
         chk_layout.addWidget(self.anon_chk)
@@ -147,12 +149,8 @@ class ConnectionDialog(QDialog):
 
         layout.addLayout(grid)
 
-        # S3 / Protocol Info Tip
-        self.hint_label = QLabel(
-            "ℹ Amazon S3 Credentials:\n"
-            "• Permanent IAM Keys (AKIA...): Leave Session Token blank.\n"
-            "• Temporary STS Keys (ASIA...): Provide Session Token or click 'AWS SSO Login...'."
-        )
+        # Helper hint banner
+        self.hint_label = QLabel("")
         self.hint_label.setStyleSheet("color: #005a9e; font-size: 11px; padding: 4px 6px; background-color: #f0f6ff; border: 1px solid #cce0ff; border-radius: 3px;")
         self.hint_label.setWordWrap(True)
         self.hint_label.setVisible(False)
@@ -165,7 +163,7 @@ class ConnectionDialog(QDialog):
 
         more_layout.addWidget(QLabel("Path:"), 0, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Initial remote path (optional)")
+        self.path_edit.setPlaceholderText("Initial remote path or bucket (e.g. /my-bucket)")
         more_layout.addWidget(self.path_edit, 0, 1)
 
         more_layout.addWidget(QLabel("Web URL:"), 1, 0, Qt.AlignRight | Qt.AlignVCenter)
@@ -176,8 +174,15 @@ class ConnectionDialog(QDialog):
         layout.addWidget(self.more_group)
         layout.addStretch()
 
-        # Bottom Buttons (Windows standard Connect / Cancel)
+        # Bottom Buttons (Windows standard Connect / Cancel / Save as Bookmark)
         btn_layout = QHBoxLayout()
+
+        self.save_bm_btn = QPushButton("Save as Bookmark...")
+        self.save_bm_btn.setIcon(get_icon("bookmark"))
+        self.save_bm_btn.setToolTip("Save these connection settings as a bookmark")
+        self.save_bm_btn.clicked.connect(self._save_as_bookmark)
+        btn_layout.addWidget(self.save_bm_btn)
+
         btn_layout.addStretch()
 
         self.connect_btn = QPushButton("Connect")
@@ -193,165 +198,265 @@ class ConnectionDialog(QDialog):
         self._on_protocol_changed(0)
 
     def _populate_protocols(self):
-        default_protocols = [
-            ("sftp", "SFTP (SSH File Transfer Protocol)", 22),
-            ("ftp", "FTP (File Transfer Protocol)", 21),
-            ("ftps", "FTP-SSL (Explicit AUTH TLS)", 21),
-            ("s3", "Amazon S3", 443),
-            ("dav", "WebDAV (HTTP)", 80),
-            ("davs", "WebDAV (HTTPS)", 443),
-        ]
-        for pid, name, port in default_protocols:
+        self.protocol_combo.clear()
+        for pid, name, port, default_server in SUPPORTED_PROTOCOLS:
             icon = get_protocol_icon(pid)
-            self.protocol_combo.addItem(icon, name, (pid, port))
+            self.protocol_combo.addItem(icon, name, (pid, port, default_server))
 
     def _on_protocol_changed(self, idx: int):
         data = self.protocol_combo.itemData(idx)
-        if data:
-            pid, port = data
-            self.port_spin.setValue(port)
-            is_sftp = "sftp" in pid.lower() or "ssh" in pid.lower()
-            is_s3 = "s3" in pid.lower()
+        if not data:
+            return
+        pid, port, default_server = data
+        self.port_spin.setValue(port)
 
-            if is_s3:
-                self.hint_label.setVisible(True)
-                self.user_label.setText("Access Key ID:")
-                self.username_edit.setPlaceholderText("e.g. AKIAIOSFODNN7EXAMPLE")
-                if self.username_edit.text() == os.environ.get("USER", "prs"):
-                    self.username_edit.clear()
-                self.pw_label.setText("Secret Access Key:")
-                self.password_edit.setPlaceholderText("e.g. wJalrXUtnFEMI/...")
-                if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1"):
-                    self.server_edit.setText("s3.amazonaws.com")
-                self.token_label.setVisible(True)
-                self.token_edit.setVisible(True)
-                self.key_label.setVisible(False)
-                self.key_widget.setVisible(False)
-                self.sso_login_btn.setVisible(True)
-                self.paste_creds_btn.setVisible(True)
-                has_env = bool(os.environ.get("AWS_ACCESS_KEY_ID")) or (Path.home() / ".config" / "aws" / "env").exists()
-                self.env_creds_btn.setVisible(True)
-                if not self.username_edit.text() and has_env:
-                    self._load_from_env()
-            elif is_sftp:
-                self.hint_label.setVisible(False)
-                self.user_label.setText("Username:")
-                self.username_edit.setPlaceholderText("")
-                if not self.username_edit.text():
-                    self.username_edit.setText(os.environ.get("USER", "prs"))
-                self.pw_label.setText("Password:")
-                self.password_edit.setPlaceholderText("")
-                self.token_label.setVisible(False)
-                self.token_edit.setVisible(False)
-                self.key_label.setVisible(True)
-                self.key_widget.setVisible(True)
-                self.key_label.setEnabled(True)
-                self.key_widget.setEnabled(True)
-                self.sso_login_btn.setVisible(False)
-                self.paste_creds_btn.setVisible(False)
-                self.env_creds_btn.setVisible(False)
-            else:
-                self.hint_label.setVisible(False)
-                self.user_label.setText("Username:")
-                self.username_edit.setPlaceholderText("")
-                if not self.username_edit.text():
-                    self.username_edit.setText(os.environ.get("USER", "prs"))
-                self.pw_label.setText("Password:")
-                self.password_edit.setPlaceholderText("")
-                self.token_label.setVisible(False)
-                self.token_edit.setVisible(False)
-                self.key_label.setVisible(False)
-                self.key_widget.setVisible(False)
-                self.sso_login_btn.setVisible(False)
-                self.paste_creds_btn.setVisible(False)
-                self.env_creds_btn.setVisible(False)
+        is_s3_sso = pid == "s3-sso"
+        is_s3_keys = pid == "s3"
+        is_gcs = pid == "gcs" or pid == "googlestorage"
+        is_azure = pid == "azure"
+        is_b2 = pid == "b2" or pid == "backblaze"
+        is_sftp = pid == "sftp"
+        is_ftp = "ftp" in pid
+
+        if is_s3_sso:
+            self.hint_label.setVisible(True)
+            self.hint_label.setText("ℹ Amazon S3 (IAM Identity Center / SSO): Authenticates with short-lived STS credentials via AWS SSO. Click 'AWS SSO Login...' to select account & role.")
+            self.user_label.setText("Access Key ID:")
+            self.username_edit.setPlaceholderText("Auto-filled from AWS SSO (ASIA...)")
+            if self.username_edit.text() == os.environ.get("USER", "prs"):
+                self.username_edit.clear()
+            self.pw_label.setText("Secret Access Key:")
+            self.password_edit.setPlaceholderText("Auto-filled from AWS SSO")
+            if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1"):
+                self.server_edit.setText("s3.amazonaws.com")
+            self.token_label.setVisible(True)
+            self.token_edit.setVisible(True)
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(True)
+            self.paste_creds_btn.setVisible(True)
+            self.env_creds_btn.setVisible(True)
+            has_env = bool(os.environ.get("AWS_ACCESS_KEY_ID")) or (Path.home() / ".config" / "aws" / "env").exists()
+            if not self.username_edit.text() and has_env:
+                self._load_from_env()
+
+        elif is_s3_keys:
+            self.hint_label.setVisible(True)
+            self.hint_label.setText("ℹ Amazon S3 (Permanent Credentials): Standard IAM user access key and secret key (AKIA...). No Session Token or SSO login required.")
+            self.user_label.setText("Access Key ID:")
+            self.username_edit.setPlaceholderText("e.g. AKIAIOSFODNN7EXAMPLE")
+            if self.username_edit.text() == os.environ.get("USER", "prs"):
+                self.username_edit.clear()
+            self.pw_label.setText("Secret Access Key:")
+            self.password_edit.setPlaceholderText("e.g. wJalrXUtnFEMI/...")
+            if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1"):
+                self.server_edit.setText("s3.amazonaws.com")
+            # Permanent keys DO NOT use session token or SSO button
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(True)
+            self.env_creds_btn.setVisible(False)
+
+        elif is_gcs:
+            self.hint_label.setVisible(True)
+            self.hint_label.setText("ℹ Google Cloud Storage (GCS): Connects to storage.googleapis.com using Google Cloud interoperability access keys or service account credentials.")
+            self.user_label.setText("Access Key / Email:")
+            self.username_edit.setPlaceholderText("Google Access Key or Service Account Email")
+            if self.username_edit.text() == os.environ.get("USER", "prs"):
+                self.username_edit.clear()
+            self.pw_label.setText("Secret Key:")
+            self.password_edit.setPlaceholderText("Google Secret Key")
+            if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1", "s3.amazonaws.com"):
+                self.server_edit.setText("storage.googleapis.com")
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(False)
+            self.env_creds_btn.setVisible(False)
+
+        elif is_azure:
+            self.hint_label.setVisible(True)
+            self.hint_label.setText("ℹ Microsoft Azure: Connects to Azure Blob Storage using your storage account name and access key.")
+            self.user_label.setText("Account Name:")
+            self.username_edit.setPlaceholderText("Azure storage account name")
+            if self.username_edit.text() == os.environ.get("USER", "prs"):
+                self.username_edit.clear()
+            self.pw_label.setText("Access Key:")
+            self.password_edit.setPlaceholderText("Azure storage account key")
+            if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1", "s3.amazonaws.com"):
+                self.server_edit.setText("blob.core.windows.net")
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(False)
+            self.env_creds_btn.setVisible(False)
+
+        elif is_b2:
+            self.hint_label.setVisible(True)
+            self.hint_label.setText("ℹ Backblaze B2: Connects to Backblaze B2 Cloud Storage using your Key ID and Application Key.")
+            self.user_label.setText("Key ID:")
+            self.username_edit.setPlaceholderText("Backblaze application Key ID")
+            if self.username_edit.text() == os.environ.get("USER", "prs"):
+                self.username_edit.clear()
+            self.pw_label.setText("Application Key:")
+            self.password_edit.setPlaceholderText("Backblaze Application Key")
+            if not self.server_edit.text() or self.server_edit.text() in ("localhost", "127.0.0.1", "s3.amazonaws.com"):
+                self.server_edit.setText("api.backblazeb2.com")
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(False)
+            self.env_creds_btn.setVisible(False)
+
+        elif is_sftp:
+            self.hint_label.setVisible(False)
+            self.user_label.setText("Username:")
+            self.username_edit.setPlaceholderText("")
+            if not self.username_edit.text():
+                self.username_edit.setText(os.environ.get("USER", "prs"))
+            self.pw_label.setText("Password:")
+            self.password_edit.setPlaceholderText("")
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(True)
+            self.key_widget.setVisible(True)
+            self.key_label.setEnabled(True)
+            self.key_widget.setEnabled(True)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(False)
+            self.env_creds_btn.setVisible(False)
+
+        else:
+            # FTP / FTPS / WebDAV
+            self.hint_label.setVisible(False)
+            self.user_label.setText("Username:")
+            self.username_edit.setPlaceholderText("")
+            if not self.username_edit.text():
+                self.username_edit.setText(os.environ.get("USER", "prs"))
+            self.pw_label.setText("Password:")
+            self.password_edit.setPlaceholderText("")
+            self.token_label.setVisible(False)
+            self.token_edit.setVisible(False)
+            self.token_edit.clear()
+            self.key_label.setVisible(False)
+            self.key_widget.setVisible(False)
+            self.sso_login_btn.setVisible(False)
+            self.paste_creds_btn.setVisible(False)
+            self.env_creds_btn.setVisible(False)
+
+    def _on_anon_toggled(self, checked: bool):
+        self.username_edit.setEnabled(not checked)
+        self.password_edit.setEnabled(not checked)
+        self.token_edit.setEnabled(not checked)
+        self.key_edit.setEnabled(not checked)
+        self.browse_key_btn.setEnabled(not checked)
+        if checked:
+            self.username_edit.setText("anonymous")
+            self.password_edit.clear()
+            self.token_edit.clear()
+
+    def _browse_key(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Private Key", str(Path.home() / ".ssh"), "All Files (*)")
+        if path:
+            self.key_edit.setText(path)
 
     def _trigger_sso_login(self):
         from .aws_sso_dialog import AwsSsoDialog
-        dlg = AwsSsoDialog(self)
-        if dlg.exec_() == AwsSsoDialog.Accepted and dlg.credentials:
-            creds = dlg.credentials
-            if creds.get("access_key"):
-                self.username_edit.setText(creds["access_key"])
-            if creds.get("secret_key"):
-                self.password_edit.setText(creds["secret_key"])
-            if creds.get("session_token"):
-                self.token_edit.setText(creds["session_token"])
+        dlg = AwsSsoDialog(parent=self)
+        if dlg.exec_() == AwsSsoDialog.Accepted:
+            creds = dlg.get_credentials()
+            if creds:
+                if creds.get("access_key"):
+                    self.username_edit.setText(creds["access_key"])
+                if creds.get("secret_key"):
+                    self.password_edit.setText(creds["secret_key"])
+                if creds.get("session_token"):
+                    self.token_edit.setText(creds["session_token"])
+                if not self.server_edit.text():
+                    self.server_edit.setText("s3.amazonaws.com")
+                role_name = creds.get("role_name", "")
+                acc_name = creds.get("account_name", "")
+                self.hint_label.setText(f"✓ AWS SSO Active: Loaded STS credentials for {role_name} ({acc_name})")
+                self.hint_label.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px 6px; background-color: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 3px;")
 
     def _paste_from_clipboard(self):
         text = QApplication.clipboard().text()
         if not text:
             return
 
-        ak = re.search(r'(?:AWS_ACCESS_KEY_ID|AccessKeyId)["\']?\s*[=:]\s*["\']?([A-Za-z0-9+/=]+)["\']?', text)
-        sk = re.search(r'(?:AWS_SECRET_ACCESS_KEY|SecretAccessKey)["\']?\s*[=:]\s*["\']?([A-Za-z0-9+/=]+)["\']?', text)
-        st = re.search(r'(?:AWS_SESSION_TOKEN|SessionToken)["\']?\s*[=:]\s*["\']?([A-Za-z0-9+/=]+)["\']?', text)
+        ak_match = re.search(r'(?:AWS_ACCESS_KEY_ID|aws_access_key_id)\s*=\s*["\']?([A-Za-z0-9/+=]+)["\']?', text)
+        sk_match = re.search(r'(?:AWS_SECRET_ACCESS_KEY|aws_secret_access_key)\s*=\s*["\']?([A-Za-z0-9/+=]+)["\']?', text)
+        st_match = re.search(r'(?:AWS_SESSION_TOKEN|aws_session_token|AWS_SECURITY_TOKEN)\s*=\s*["\']?([A-Za-z0-9/+=]+)["\']?', text)
 
         found = False
-        if ak:
-            self.username_edit.setText(ak.group(1))
+        if ak_match:
+            self.username_edit.setText(ak_match.group(1))
             found = True
-        if sk:
-            self.password_edit.setText(sk.group(1))
+        if sk_match:
+            self.password_edit.setText(sk_match.group(1))
             found = True
-        if st:
-            self.token_edit.setText(st.group(1))
+        if st_match and self.token_edit.isVisible():
+            self.token_edit.setText(st_match.group(1))
             found = True
 
         if found:
-            self.hint_label.setText("✓ Successfully pasted AWS credentials from clipboard!")
-            self.hint_label.setStyleSheet("color: green; font-size: 11px; padding: 4px 6px; background-color: #f0fff0; border: 1px solid #bce8ba; border-radius: 3px;")
+            self.hint_label.setText("✓ Credentials pasted from clipboard.")
+            self.hint_label.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px 6px; background-color: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 3px;")
 
     def _load_from_env(self):
-        ak = os.environ.get("AWS_ACCESS_KEY_ID", "")
-        sk = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-        st = os.environ.get("AWS_SESSION_TOKEN", "")
+        ak = os.environ.get("AWS_ACCESS_KEY_ID")
+        sk = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        st = os.environ.get("AWS_SESSION_TOKEN") or os.environ.get("AWS_SECURITY_TOKEN")
 
-        # Also check ~/.config/aws/env persisted by shell
-        env_file = Path.home() / ".config" / "aws" / "env"
-        if env_file.exists():
-            try:
-                content = env_file.read_text()
-                m_ak = re.search(r'AWS_ACCESS_KEY_ID=["\']?([^"\'\n]+)["\']?', content)
-                m_sk = re.search(r'AWS_SECRET_ACCESS_KEY=["\']?([^"\'\n]+)["\']?', content)
-                m_st = re.search(r'AWS_SESSION_TOKEN=["\']?([^"\'\n]+)["\']?', content)
-                if m_ak and m_ak.group(1):
-                    ak = m_ak.group(1)
-                if m_sk and m_sk.group(1):
-                    sk = m_sk.group(1)
-                if m_st and m_st.group(1):
-                    st = m_st.group(1)
-            except Exception:
-                pass
+        if not ak:
+            env_file = Path.home() / ".config" / "aws" / "env"
+            if env_file.exists():
+                try:
+                    content = env_file.read_text()
+                    ak_match = re.search(r'AWS_ACCESS_KEY_ID="?([^"\n]+)"?', content)
+                    sk_match = re.search(r'AWS_SECRET_ACCESS_KEY="?([^"\n]+)"?', content)
+                    st_match = re.search(r'AWS_SESSION_TOKEN="?([^"\n]+)"?', content)
+                    if ak_match:
+                        ak = ak_match.group(1)
+                    if sk_match:
+                        sk = sk_match.group(1)
+                    if st_match:
+                        st = st_match.group(1)
+                except Exception:
+                    pass
 
         if ak:
             self.username_edit.setText(ak)
         if sk:
             self.password_edit.setText(sk)
-        if st:
+        if st and self.token_edit.isVisible():
             self.token_edit.setText(st)
 
-    def _on_anon_toggled(self, checked: bool):
-        self.username_edit.setEnabled(not checked)
-        self.password_edit.setEnabled(not checked)
-        self.show_pw_chk.setEnabled(not checked)
-        self.save_pw_chk.setEnabled(not checked)
+        if ak:
+            self.hint_label.setText("✓ AWS credentials loaded from environment.")
+            self.hint_label.setStyleSheet("color: #2e7d32; font-size: 11px; padding: 4px 6px; background-color: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 3px;")
 
     def _populate_bookmarks_dropdown(self):
-        if not hasattr(self, "bookmark_combo"):
-            return
-        current_data = self.bookmark_combo.currentData()
         self.bookmark_combo.blockSignals(True)
         self.bookmark_combo.clear()
-        self.bookmark_combo.addItem(get_icon("connect"), "(None – Custom Connection)", None)
-        bms = load_bookmarks()
-        select_idx = 0
-        for idx, bm in enumerate(bms, start=1):
+        self.bookmark_combo.addItem("(None – Custom Connection)", None)
+        for bm in load_bookmarks():
             icon = get_protocol_icon(bm.protocol)
-            self.bookmark_combo.addItem(icon, f"{bm.nickname}  ({bm.protocol}://{bm.hostname})", bm)
-            if current_data and getattr(current_data, "uuid", "") == bm.uuid:
-                select_idx = idx
-        self.bookmark_combo.setCurrentIndex(select_idx)
+            self.bookmark_combo.addItem(icon, bm.nickname, bm)
         self.bookmark_combo.blockSignals(False)
 
     def _on_bookmark_combo_changed(self, idx: int):
@@ -359,25 +464,22 @@ class ConnectionDialog(QDialog):
         if bm:
             self._load_bookmark(bm)
 
-    def _browse_key(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select SSH Private Key", str(Path.home() / ".ssh"), "All Files (*)"
-        )
-        if path:
-            self.key_edit.setText(path)
-
-    def _load_bookmark(self, bm):
+    def _load_bookmark(self, bm: Bookmark):
+        match_idx = 0
         for i in range(self.protocol_combo.count()):
             data = self.protocol_combo.itemData(i)
-            if data and data[0] == bm.protocol:
-                self.protocol_combo.setCurrentIndex(i)
-                self._on_protocol_changed(i)
+            if data and (data[0] == bm.protocol or (bm.protocol == "s3" and data[0] in ("s3", "s3-sso"))):
+                match_idx = i
                 break
+        self.protocol_combo.setCurrentIndex(match_idx)
+        self._on_protocol_changed(match_idx)
 
         self.server_edit.setText(bm.hostname)
         self.port_spin.setValue(bm.port)
         if bm.username:
             self.username_edit.setText(bm.username)
+        if bm.password:
+            self.password_edit.setText(bm.password)
         if bm.path_val:
             self.path_edit.setText(bm.path_val)
         if bm.private_key_file:
@@ -414,24 +516,73 @@ class ConnectionDialog(QDialog):
             except Exception:
                 pass
 
-        # If static/saved token/password
         if bm.data.get("Session_Token") and not self.token_edit.text():
             self.token_edit.setText(bm.data.get("Session_Token"))
         if bm.data.get("Secret_Key") and not self.password_edit.text():
             self.password_edit.setText(bm.data.get("Secret_Key"))
 
+    def _save_as_bookmark(self):
+        info = self.get_connection_info()
+        bm = Bookmark()
+        bm.protocol = info["protocol"]
+        bm.hostname = info["hostname"]
+        bm.port = info["port"]
+        bm.username = info["username"]
+        if self.save_pw_chk.isChecked() and info["password"]:
+            bm.password = info["password"]
+        if info.get("path"):
+            bm.path_val = info["path"]
+        if info.get("identity"):
+            bm.private_key_file = info["identity"]
+
+        # Default nickname
+        if "s3-sso" in bm.protocol:
+            bm.nickname = f"S3 SSO – {bm.username}" if bm.username else "S3 SSO"
+        elif "s3" in bm.protocol:
+            bm.nickname = f"S3 – {bm.username}" if bm.username else "Amazon S3"
+        elif "gcs" in bm.protocol:
+            bm.nickname = f"GCS – {bm.hostname}"
+        elif "azure" in bm.protocol:
+            bm.nickname = f"Azure – {bm.username}"
+        elif "b2" in bm.protocol:
+            bm.nickname = f"B2 – {bm.username}"
+        else:
+            bm.nickname = f"{bm.hostname or 'Server'} ({bm.protocol})"
+
+        from .bookmark_dialog import BookmarkDialog
+        dlg = BookmarkDialog(bm, parent=self)
+        if dlg.exec_() == BookmarkDialog.Accepted:
+            self._populate_bookmarks_dropdown()
+            # Select newly created bookmark
+            for i in range(self.bookmark_combo.count()):
+                b = self.bookmark_combo.itemData(i)
+                if b and getattr(b, "uuid", "") == bm.uuid:
+                    self.bookmark_combo.setCurrentIndex(i)
+                    break
+
     def get_connection_info(self) -> dict:
         data = self.protocol_combo.currentData()
         pid = data[0] if data else "sftp"
+
+        # Map to backend protocols
+        backend_proto = pid
+        if pid in ("s3-sso", "s3-keys"):
+            backend_proto = "s3"
+        elif pid == "gcs":
+            backend_proto = "googlestorage"
+
         is_s3 = "s3" in pid.lower()
         is_sftp = "sftp" in pid.lower() or "ssh" in pid.lower()
+        token = self.token_edit.text().strip() if (pid == "s3-sso" and self.token_edit.text().strip()) else None
+
         return {
-            "protocol": pid,
+            "protocol": backend_proto,
+            "raw_protocol": pid,
             "hostname": self.server_edit.text().strip(),
             "port": self.port_spin.value(),
             "username": "anonymous" if self.anon_chk.isChecked() else self.username_edit.text().strip(),
             "password": "" if self.anon_chk.isChecked() else self.password_edit.text(),
-            "token": self.token_edit.text().strip() if (is_s3 and self.token_edit.text().strip()) else None,
+            "token": token,
             "identity": self.key_edit.text().strip() if (is_sftp and self.key_edit.text().strip()) else None,
             "path": self.path_edit.text().strip(),
         }

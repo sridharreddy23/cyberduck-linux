@@ -1,6 +1,7 @@
 """
 Cyberduck Bookmark Manager (.duck Apple XML Property List format).
 """
+import copy
 import os
 import plistlib
 import uuid
@@ -8,6 +9,27 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 BOOKMARKS_DIR = Path.home() / ".duck" / "Bookmarks"
+
+# Standard protocols supported across Cyberduck Linux
+# Format: (protocol_id, display_name, default_port, default_server)
+SUPPORTED_PROTOCOLS = [
+    ("s3-sso", "Amazon S3 (IAM Identity Center / SSO)", 443, "s3.amazonaws.com"),
+    ("s3", "Amazon S3 (Permanent Credentials / Access Key)", 443, "s3.amazonaws.com"),
+    ("gcs", "Google Cloud Storage", 443, "storage.googleapis.com"),
+    ("azure", "Microsoft Azure Blob Storage", 443, "blob.core.windows.net"),
+    ("b2", "Backblaze B2 Cloud Storage", 443, "api.backblazeb2.com"),
+    ("sftp", "SFTP (SSH File Transfer Protocol)", 22, ""),
+    ("ftp", "FTP (File Transfer Protocol)", 21, ""),
+    ("ftps", "FTP-SSL (Explicit AUTH TLS)", 21, ""),
+    ("dav", "WebDAV (HTTP)", 80, ""),
+    ("davs", "WebDAV (HTTPS)", 443, ""),
+]
+
+PROTOCOL_DISPLAY_NAMES = {pid: name for pid, name, _, _ in SUPPORTED_PROTOCOLS}
+PROTOCOL_DISPLAY_NAMES.update({
+    "googlestorage": "Google Cloud Storage",
+    "backblaze": "Backblaze B2 Cloud Storage",
+})
 
 
 class Bookmark:
@@ -66,12 +88,34 @@ class Bookmark:
         self.data["Username"] = val
 
     @property
+    def password(self) -> Optional[str]:
+        return self.data.get("Password")
+
+    @password.setter
+    def password(self, val: Optional[str]):
+        if val:
+            self.data["Password"] = val
+        else:
+            self.data.pop("Password", None)
+
+    @property
     def path_val(self) -> str:
         return self.data.get("Path", "")
 
     @path_val.setter
     def path_val(self, val: str):
         self.data["Path"] = val
+
+    @property
+    def region(self) -> Optional[str]:
+        return self.data.get("Region")
+
+    @region.setter
+    def region(self, val: Optional[str]):
+        if val:
+            self.data["Region"] = val
+        else:
+            self.data.pop("Region", None)
 
     @property
     def private_key_file(self) -> Optional[str]:
@@ -86,6 +130,41 @@ class Bookmark:
             self.data.pop("Private Key File", None)
             self.data.pop("Private Key File Dictionary", None)
 
+    @property
+    def subtitle(self) -> str:
+        """Returns clean informative summary string for UI listing."""
+        parts = []
+        proto_name = PROTOCOL_DISPLAY_NAMES.get(self.protocol, self.protocol.upper())
+        # Shorten protocol label for subtitle
+        short_proto = proto_name.split(" (")[0]
+        parts.append(short_proto)
+
+        if self.hostname and self.hostname not in ("s3.amazonaws.com", "storage.googleapis.com", "blob.core.windows.net", "api.backblazeb2.com"):
+            parts.append(self.hostname)
+
+        if self.username:
+            u = self.username
+            if len(u) > 28:
+                u = u[:25] + "..."
+            parts.append(u)
+
+        if self.path_val and self.path_val != "/":
+            p = self.path_val
+            if len(p) > 24:
+                p = "..." + p[-21:]
+            parts.append(p)
+
+        return " • ".join(parts)
+
+    def duplicate(self) -> 'Bookmark':
+        """Clone this bookmark with a new UUID and distinct nickname."""
+        new_data = copy.deepcopy(self.data)
+        new_data["UUID"] = str(uuid.uuid4())
+        new_data["Nickname"] = f"{self.nickname} – Copy"
+        new_bm = Bookmark(new_data)
+        new_bm.save()
+        return new_bm
+
     def save(self):
         BOOKMARKS_DIR.mkdir(parents=True, exist_ok=True)
         if not self.path:
@@ -99,7 +178,7 @@ class Bookmark:
 
 
 def load_bookmarks() -> List[Bookmark]:
-    """Load all *.duck files from ~/.duck/Bookmarks/."""
+    """Load all *.duck files from ~/.duck/Bookmarks/, sorted alphabetically."""
     bookmarks = []
     if not BOOKMARKS_DIR.exists():
         return bookmarks
@@ -112,4 +191,5 @@ def load_bookmarks() -> List[Bookmark]:
         except Exception:
             continue
 
+    bookmarks.sort(key=lambda b: b.nickname.lower())
     return bookmarks

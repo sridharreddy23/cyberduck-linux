@@ -26,6 +26,35 @@ from .login_prompt_dialog import LoginPromptDialog
 from .presigned_url_dialog import PresignedUrlDialog
 
 
+class BookmarkListItemWidget(QWidget):
+    def __init__(self, bm: Bookmark, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(8)
+
+        icon_lbl = QLabel()
+        icon = get_protocol_icon(bm.protocol)
+        icon_lbl.setPixmap(icon.pixmap(20, 20))
+        layout.addWidget(icon_lbl, 0, Qt.AlignVCenter)
+
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(1)
+
+        title_lbl = QLabel(bm.nickname)
+        title_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        text_layout.addWidget(title_lbl)
+
+        sub_lbl = QLabel(bm.subtitle)
+        sub_lbl.setFont(QFont("Segoe UI", 8))
+        sub_lbl.setStyleSheet("color: #666;")
+        text_layout.addWidget(sub_lbl)
+
+        layout.addLayout(text_layout, 1)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -174,6 +203,12 @@ class MainWindow(QMainWindow):
         self.act_new_bm = QAction(get_icon("bookmark"), "&New Bookmark...", self)
         self.act_new_bm.setShortcut(QKeySequence("Ctrl+B"))
         self.act_new_bm.triggered.connect(self.on_new_bookmark)
+
+        self.act_bm_current = QAction(get_icon("add"), "Bookmark &Current Connection...", self)
+        self.act_bm_current.setShortcut(QKeySequence("Ctrl+Shift+B"))
+        self.act_bm_current.setEnabled(False)
+        self.act_bm_current.triggered.connect(self.on_bookmark_current)
+
         self.act_toggle_bm = QAction("&Toggle Bookmarks", self, checkable=True)
         self.act_toggle_bm.setShortcut(QKeySequence("Ctrl+1"))
         self.act_toggle_bm.setChecked(True)
@@ -349,9 +384,15 @@ class MainWindow(QMainWindow):
 
         add_bm_btn = QToolButton()
         add_bm_btn.setIcon(get_icon("add"))
-        add_bm_btn.setToolTip("New Bookmark")
+        add_bm_btn.setToolTip("New Bookmark (Ctrl+B)")
         add_bm_btn.clicked.connect(self.on_new_bookmark)
         bmh_layout.addWidget(add_bm_btn)
+
+        dup_bm_btn = QToolButton()
+        dup_bm_btn.setIcon(get_icon("clean"))
+        dup_bm_btn.setToolTip("Duplicate Selected Bookmark")
+        dup_bm_btn.clicked.connect(self.on_duplicate_bookmark)
+        bmh_layout.addWidget(dup_bm_btn)
 
         edit_bm_btn = QToolButton()
         edit_bm_btn.setIcon(get_icon("info"))
@@ -366,6 +407,17 @@ class MainWindow(QMainWindow):
         bmh_layout.addWidget(del_bm_btn)
 
         bm_layout.addWidget(bm_header)
+
+        # Bookmarks Filter Search Bar
+        filter_widget = QWidget()
+        fw_layout = QHBoxLayout(filter_widget)
+        fw_layout.setContentsMargins(6, 2, 6, 6)
+        self.bm_search = QLineEdit()
+        self.bm_search.setPlaceholderText("Filter Bookmarks...")
+        self.bm_search.setClearButtonEnabled(True)
+        self.bm_search.textChanged.connect(self._filter_bookmarks)
+        fw_layout.addWidget(self.bm_search)
+        bm_layout.addWidget(filter_widget)
 
         self.bookmarks_list = QListWidget()
         self.bookmarks_list.setIconSize(QSize(20, 20))
@@ -452,6 +504,8 @@ class MainWindow(QMainWindow):
         dlg = ConnectionDialog(self, self.bridge)
         if dlg.exec_() == ConnectionDialog.Accepted:
             info = dlg.get_connection_info()
+            self.current_protocol = info["protocol"]
+            self.current_username = info.get("username", "")
             self.bridge.connect_host(
                 protocol=info["protocol"],
                 hostname=info["hostname"],
@@ -642,6 +696,8 @@ class MainWindow(QMainWindow):
         self.act_reload.setEnabled(True)
         self.act_new_folder.setEnabled(True)
         self.act_upload.setEnabled(True)
+        if hasattr(self, "act_bm_current"):
+            self.act_bm_current.setEnabled(True)
         self.sb_lock.setPixmap(get_icon("locked").pixmap(14, 14))
 
     @pyqtSlot()
@@ -655,6 +711,8 @@ class MainWindow(QMainWindow):
         self.act_presign.setEnabled(False)
         self.act_rename.setEnabled(False)
         self.act_delete.setEnabled(False)
+        if hasattr(self, "act_bm_current"):
+            self.act_bm_current.setEnabled(False)
         self.tb_info.setEnabled(False)
         self.sb_lock.clear()
         self.model.removeRows(0, self.model.rowCount())
@@ -856,16 +914,24 @@ class MainWindow(QMainWindow):
         self.bookmarks_list.blockSignals(True)
         self.bookmarks_list.clear()
         for bm in bms:
-            item = QListWidgetItem(get_protocol_icon(bm.protocol), bm.nickname)
+            item = QListWidgetItem(self.bookmarks_list)
             item.setData(Qt.UserRole, bm)
-            item.setToolTip(f"{bm.protocol}://{bm.hostname}:{bm.port}")
-            self.bookmarks_list.addItem(item)
+            item.setSizeHint(QSize(200, 44))
+            item.setToolTip(f"{bm.protocol}://{bm.hostname}:{bm.port}{bm.path_val}")
+            w = BookmarkListItemWidget(bm)
+            self.bookmarks_list.setItemWidget(item, w)
         self.bookmarks_list.blockSignals(False)
+
+        # Re-apply current search filter if active
+        if hasattr(self, "bm_search") and self.bm_search.text().strip():
+            self._filter_bookmarks(self.bm_search.text())
 
         # 2. Update Bookmarks Menu Bar
         if hasattr(self, "bm_menu"):
             self.bm_menu.clear()
             self.bm_menu.addAction(self.act_new_bm)
+            if hasattr(self, "act_bm_current"):
+                self.bm_menu.addAction(self.act_bm_current)
             self.bm_menu.addAction(self.act_toggle_bm)
             self.bm_menu.addSeparator()
 
@@ -879,17 +945,62 @@ class MainWindow(QMainWindow):
                     act.setData(bm)
                     act.triggered.connect(lambda chk, b=bm: self._connect_bookmark(b))
 
+    def _filter_bookmarks(self, text: str):
+        query = text.strip().lower()
+        for i in range(self.bookmarks_list.count()):
+            item = self.bookmarks_list.item(i)
+            bm: Bookmark = item.data(Qt.UserRole)
+            if not bm:
+                continue
+            matches = (
+                not query
+                or query in bm.nickname.lower()
+                or query in bm.subtitle.lower()
+                or query in bm.hostname.lower()
+                or query in bm.protocol.lower()
+                or query in (bm.username or "").lower()
+            )
+            item.setHidden(not matches)
+
+    def on_duplicate_bookmark(self):
+        item = self.bookmarks_list.currentItem()
+        if not item:
+            return
+        bm: Bookmark = item.data(Qt.UserRole)
+        if bm:
+            cloned = bm.duplicate()
+            self._refresh_bookmarks()
+
+    def on_bookmark_current(self):
+        if not self.bridge.is_connected:
+            return
+        bm = Bookmark()
+        bm.hostname = self.bridge.current_hostname
+        bm.path_val = self.current_path
+        bm.protocol = getattr(self, "current_protocol", "s3")
+        bm.username = getattr(self, "current_username", "")
+        path_label = self.current_path.strip("/") or "Root"
+        bm.nickname = f"{bm.hostname} – {path_label}"
+        dlg = BookmarkDialog(bm, self)
+        if dlg.exec_() == BookmarkDialog.Accepted:
+            self._refresh_bookmarks()
+
     def _on_bookmark_context_menu(self, pos):
         item = self.bookmarks_list.itemAt(pos)
         menu = QMenu(self)
         if item:
             bm: Bookmark = item.data(Qt.UserRole)
             menu.addAction(get_icon("connect"), f"Connect to '{bm.nickname}'", lambda: self._connect_bookmark(bm))
+            menu.addAction(get_icon("open"), "Open Connection Settings...", lambda: self._connect_bookmark(bm))
             menu.addSeparator()
             menu.addAction(get_icon("info"), "Edit Bookmark...", self.on_edit_bookmark)
+            menu.addAction(get_icon("clean"), "Duplicate Bookmark", self.on_duplicate_bookmark)
+            menu.addAction("Copy URL", lambda: QApplication.clipboard().setText(f"{bm.protocol}://{bm.hostname}{bm.path_val}"))
             menu.addAction(get_icon("delete"), "Delete Bookmark", self.on_delete_bookmark)
             menu.addSeparator()
-        menu.addAction(get_icon("bookmark"), "New Bookmark...", self.on_new_bookmark)
+        if self.bridge.is_connected:
+            menu.addAction(get_icon("bookmark"), "Bookmark Current Connection...", self.on_bookmark_current)
+        menu.addAction(get_icon("add"), "New Bookmark...", self.on_new_bookmark)
         menu.exec_(self.bookmarks_list.mapToGlobal(pos))
 
     def _on_bookmark_double_clicked(self, item):
@@ -898,9 +1009,13 @@ class MainWindow(QMainWindow):
             self._connect_bookmark(bm)
 
     def _connect_bookmark(self, bm: Bookmark):
+        self.current_protocol = bm.protocol
+        self.current_username = bm.username
         dlg = ConnectionDialog(self, self.bridge, initial_bookmark=bm)
         if dlg.exec_() == ConnectionDialog.Accepted:
             info = dlg.get_connection_info()
+            self.current_protocol = info["protocol"]
+            self.current_username = info.get("username", "")
             self.bridge.connect_host(
                 protocol=info["protocol"],
                 hostname=info["hostname"],

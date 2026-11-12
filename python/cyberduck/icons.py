@@ -68,16 +68,20 @@ def get_protocol_icon(protocol_id: str) -> QIcon:
     pid = (protocol_id or "").lower()
     if "sftp" in pid or "ssh" in pid:
         return get_icon("connect")
+    elif "ftps" in pid:
+        return get_icon("ftp")
     elif "ftp" in pid:
         return get_icon("ftp")
     elif "s3" in pid:
         return get_icon("s3")
-    elif "dav" in pid or "http" in pid:
-        return get_icon("connection")
+    elif "gcs" in pid or "google" in pid or "drive" in pid:
+        return get_icon("googledrive")
     elif "azure" in pid:
         return get_icon("azure")
-    elif "google" in pid or "drive" in pid:
-        return get_icon("googledrive")
+    elif "b2" in pid or "backblaze" in pid:
+        return get_icon("site")
+    elif "dav" in pid or "http" in pid:
+        return get_icon("connection")
     elif "dropbox" in pid:
         return get_icon("dropbox")
     elif "onedrive" in pid:
