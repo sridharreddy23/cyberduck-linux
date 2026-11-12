@@ -330,3 +330,13 @@ class CyberduckBridge(QObject):
                 self.error_received.emit(res.get("error", "Failed to start upload"))
 
         self.send_command("upload", params, _cb)
+
+    def get_presigned_url(self, path: str, expiry: int = 3600, method: str = "GET", callback: Optional[Callable[[dict], None]] = None):
+        """Generate a presigned URL for a remote file/object."""
+        params = {
+            "path": path,
+            "expiry": expiry,
+            "method": method,
+        }
+        self.send_command("presign", params, callback)
+

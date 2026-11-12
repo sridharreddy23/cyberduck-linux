@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-VERSION="9.6.1-5"
+VERSION="9.6.1-6"
 PKG_NAME="cyberduck"
 ARCH="amd64"
 DIST_DIR="$REPO_ROOT/dist"

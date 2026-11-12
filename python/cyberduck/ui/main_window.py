@@ -23,6 +23,7 @@ from .transfers_dialog import TransfersWindow
 from .info_dialog import InfoDialog
 from .bookmark_dialog import BookmarkDialog
 from .login_prompt_dialog import LoginPromptDialog
+from .presigned_url_dialog import PresignedUrlDialog
 
 
 class MainWindow(QMainWindow):
@@ -98,6 +99,12 @@ class MainWindow(QMainWindow):
         self.act_upload.setEnabled(False)
         self.act_upload.triggered.connect(self.on_upload)
         file_menu.addAction(self.act_upload)
+
+        self.act_presign = QAction(get_icon("browser"), "Get &Presigned URL...", self)
+        self.act_presign.setShortcut(QKeySequence("Ctrl+Shift+U"))
+        self.act_presign.setEnabled(False)
+        self.act_presign.triggered.connect(self.on_presigned_url)
+        file_menu.addAction(self.act_presign)
 
         file_menu.addSeparator()
 
@@ -213,6 +220,7 @@ class MainWindow(QMainWindow):
         action_menu.addAction(self.act_new_folder)
         action_menu.addAction(self.act_download)
         action_menu.addAction(self.act_upload)
+        action_menu.addAction(self.act_presign)
         action_menu.addSeparator()
         action_menu.addAction(self.act_rename)
         action_menu.addAction(self.act_delete)
@@ -540,6 +548,13 @@ class MainWindow(QMainWindow):
             for p in paths:
                 self.bridge.upload_file(p)
 
+    def on_presigned_url(self):
+        selected = self._get_selected_items()
+        if not selected or selected[0].get("isDir"):
+            return
+        dlg = PresignedUrlDialog(selected[0], self.bridge, self)
+        dlg.exec_()
+
     def on_rename(self):
         selected = self._get_selected_items()
         if not selected:
@@ -637,6 +652,7 @@ class MainWindow(QMainWindow):
         self.act_new_folder.setEnabled(False)
         self.act_download.setEnabled(False)
         self.act_upload.setEnabled(False)
+        self.act_presign.setEnabled(False)
         self.act_rename.setEnabled(False)
         self.act_delete.setEnabled(False)
         self.tb_info.setEnabled(False)
@@ -779,6 +795,7 @@ class MainWindow(QMainWindow):
         self.act_download.setEnabled(has_sel)
         self.act_rename.setEnabled(count == 1)
         self.act_delete.setEnabled(has_sel)
+        self.act_presign.setEnabled(count == 1 and not selected[0].get("isDir", False))
         self.tb_info.setEnabled(count == 1)
 
         if count == 0:
@@ -812,6 +829,8 @@ class MainWindow(QMainWindow):
             if is_single and selected[0].get("isDir"):
                 menu.addAction("Open", lambda: self.bridge.list_directory(selected[0].get("absolute")))
             menu.addAction(self.act_download)
+            if is_single and not selected[0].get("isDir"):
+                menu.addAction(self.act_presign)
             menu.addSeparator()
             if is_single:
                 menu.addAction(self.act_rename)

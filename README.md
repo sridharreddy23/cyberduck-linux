@@ -35,6 +35,7 @@ This repository provides a **fully integrated desktop application** and standalo
 - **Protected File Operations**: Inline rename triggers are disabled on item clicks. Renaming requires an explicit intent via **F2** or **Right-Click → Rename**.
 - **Chronological Download Sorting**: Configured to preserve current download timestamps so files always land at the top of your Downloads folder.
 - **Universal Java LTS Compatibility**: Bundled backend engine is compiled with Java 17 bytecode and verified across **OpenJDK 17 LTS**, **OpenJDK 21 LTS**, and **OpenJDK 25**.
+- **S3 Presigned URL Generator**: Quickly generate secure, time-limited presigned URLs (15m, 1h, 6h, 12h, 24h, 3d, 7d) for any remote object with one-click copying and browser preview.
 - **Multi-Protocol Engine**: Built directly on Cyberduck's core transfer engine, supporting **Amazon S3, SFTP (SSH), FTP/FTPS, WebDAV**, and more.
 
 ---
@@ -47,10 +48,10 @@ Download and install the latest `.deb` package directly from [GitHub Releases](h
 
 ```bash
 # 1. Download the latest release package
-wget https://github.com/sridharreddy23/cyberduck-linux/releases/download/v9.6.1-linux/cyberduck_9.6.1-5_amd64.deb
+wget https://github.com/sridharreddy23/cyberduck-linux/releases/download/v9.6.1-linux/cyberduck_9.6.1-6_amd64.deb
 
 # 2. Install the package
-sudo dpkg -i cyberduck_9.6.1-5_amd64.deb
+sudo dpkg -i cyberduck_9.6.1-6_amd64.deb
 
 # 3. Resolve any missing system dependencies (PyQt5, JRE)
 sudo apt-get install -f
@@ -74,6 +75,20 @@ Connecting to AWS S3 using AWS SSO is effortless:
 3. **One-Click Switcher**: Select your target **AWS Account** and **IAM Role** from the dropdowns. Fresh STS temporary credentials (`AccessKeyId`, `SecretAccessKey`, `SessionToken`) are loaded automatically.
 4. **Save as Bookmark**: Click **Save as Bookmark** to create a 1-click connection profile for future sessions.
 5. **Connect**: Click **Apply to Connection** → **Connect**. Your S3 buckets and objects will populate instantly in the file browser.
+
+---
+
+## Generating S3 Presigned URLs
+
+Share direct, secure, time-limited download or upload links with colleagues without making buckets public or creating IAM users:
+
+1. Right-click any file in your S3 bucket (or select the file and press `Ctrl+Shift+U`, or use the **Action** toolbar menu).
+2. Choose **Get Presigned URL...**.
+3. Select your desired expiration window:
+   - **15 Minutes** (ephemeral access)
+   - **1 Hour** (default)
+   - **6 Hours / 12 Hours / 24 Hours / 3 Days / 7 Days** (maximum allowed by AWS SigV4)
+4. Click **Copy URL** to copy the signed URL to your clipboard, or **Open in Browser** to test downloading directly.
 
 ---
 
@@ -102,7 +117,7 @@ To compile classes and package a fresh `.deb`:
 ```bash
 ./scripts/build_deb.sh
 ```
-The output package will be generated at `dist/cyberduck_9.6.1-5_amd64.deb`.
+The output package will be generated at `dist/cyberduck_9.6.1-6_amd64.deb`.
 
 ---
 

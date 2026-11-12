@@ -387,6 +387,7 @@ public final class BridgeDaemon {
             case "delete" -> handleDelete(req, res);
             case "download" -> handleDownload(req, res);
             case "upload" -> handleUpload(req, res);
+            case "presign" -> handlePresign(req, res);
             default -> {
                 res.addProperty("status", "error");
                 res.addProperty("error", "Unknown command: " + cmd);
@@ -764,5 +765,91 @@ public final class BridgeDaemon {
                 }
             }
         });
+    }
+
+    private static void handlePresign(final JsonObject req, final JsonObject res) {
+        if(pool == SessionPool.DISCONNECTED) {
+            res.addProperty("status", "error");
+            res.addProperty("error", "Not connected");
+            sendResponse(res);
+            return;
+        }
+
+        try {
+            final String pathStr = req.has("path") ? req.get("path").getAsString() : "";
+            final long expirySeconds = req.has("expiry") ? req.get("expiry").getAsLong() : 3600L;
+            final String method = req.has("method") ? req.get("method").getAsString() : "GET";
+
+            if(pathStr == null || pathStr.isEmpty() || "/".equals(pathStr)) {
+                res.addProperty("status", "error");
+                res.addProperty("error", "Cannot generate presigned URL for root path");
+                sendResponse(res);
+                return;
+            }
+
+            final Path file = new Path(pathStr, EnumSet.of(Path.Type.file));
+            final Session<?> session = pool.borrow(ch.cyberduck.core.threading.BackgroundActionState.running);
+            try {
+                if(session instanceof ch.cyberduck.core.s3.S3Session s3) {
+                    final Credentials credentials = s3.getAuthentication().get();
+                    final ch.cyberduck.core.PathContainerService containerService = new ch.cyberduck.core.s3.S3PathContainerService(s3.getHost());
+                    final Path bucket = containerService.getContainer(file);
+                    final String bucketname = bucket.isRoot() ? ch.cyberduck.core.s3.RequestEntityRestStorageService.findBucketInHostname(s3.getHost()) : bucket.getName();
+                    String region = null;
+                    if(s3.getClient() != null && s3.getClient().getRegionEndpointCache() != null) {
+                        region = s3.getClient().getRegionEndpointCache().getRegionForBucketName(bucketname);
+                    }
+                    if(region == null || region.isEmpty()) {
+                        region = s3.getHost().getRegion();
+                    }
+                    if(region == null || region.isEmpty()) {
+                        region = ch.cyberduck.core.s3.S3LocationFeature.DEFAULT_REGION.getIdentifier();
+                    }
+                    final long expiryMillis = System.currentTimeMillis() + (expirySeconds * 1000L);
+                    final String key = containerService.getKey(file);
+                    final String url = new ch.cyberduck.core.s3.S3PresignedUrlProvider(s3).create(
+                            credentials,
+                            bucketname,
+                            region,
+                            key,
+                            method,
+                            expiryMillis
+                    );
+                    res.addProperty("status", "ok");
+                    res.addProperty("url", url);
+                    res.addProperty("path", pathStr);
+                    res.addProperty("bucket", bucketname);
+                    res.addProperty("key", key);
+                    res.addProperty("expiry", expirySeconds);
+                    res.addProperty("expiresAt", expiryMillis);
+                }
+                else {
+                    final UrlProvider provider = session.getFeature(UrlProvider.class);
+                    if(provider != null) {
+                        final DescriptiveUrlBag bag = provider.toUrl(file, EnumSet.of(DescriptiveUrl.Type.signed));
+                        for(final DescriptiveUrl u : bag) {
+                            if(u.getType() == DescriptiveUrl.Type.signed && !DescriptiveUrl.EMPTY.equals(u)) {
+                                res.addProperty("status", "ok");
+                                res.addProperty("url", u.getUrl());
+                                res.addProperty("path", pathStr);
+                                res.addProperty("expiry", expirySeconds);
+                                sendResponse(res);
+                                return;
+                            }
+                        }
+                    }
+                    res.addProperty("status", "error");
+                    res.addProperty("error", "Presigned URLs are not supported for protocol " + session.getHost().getProtocol().getName());
+                }
+            }
+            finally {
+                pool.release(session, null);
+            }
+        }
+        catch(final Throwable t) {
+            res.addProperty("status", "error");
+            res.addProperty("error", t.getMessage() == null ? t.toString() : t.getMessage());
+        }
+        sendResponse(res);
     }
 }
